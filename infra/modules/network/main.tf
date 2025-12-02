@@ -1,11 +1,4 @@
 
-variable "project" {}
-variable "vpc_cidr" {}
-variable "public_subnet_cidrs"  { type = list(string) }
-variable "private_subnet_cidrs" { type = list(string) }
-
-data "aws_availability_zones" "available" {}
-
 resource "aws_vpc" "this" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
@@ -23,7 +16,7 @@ resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc_this.id
   cidr_block              = var.public_subnet_cidrs[count.index]
   map_public_ip_on_launch = true
-  availability_zone       = data.aws_availability_zones_available.names[count.index]
+  availability_zone       = data.aws_availability_zones.available.names[count.index]
   tags = { Name = "${var.project}-public-${count.index}" }
 }
 
@@ -31,9 +24,11 @@ resource "aws_subnet" "private" {
   count             = length(var.private_subnet_cidrs)
   vpc_id            = aws_vpc_this.id
   cidr_block        = var.private_subnet_cidrs[count.index]
-  availability_zone = data.aws_availability_zones_available.names[count.index]
+  availability_zone = data.aws_availability_zones.available.names[count.index]
   tags = { Name = "${var.project}-private-${count.index}" }
 }
+
+data "aws_availability_zones" "available" {}
 
 resource "aws_eip" "nat" { vpc = true }
 
@@ -67,6 +62,6 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table_private.id
 }
 
-output "vpc_id"             { value = aws_vpc_this.id }
-output "public_subnet_ids"  { value = aws_subnet_public[*].id }
-output "private_subnet_ids" { value = aws_subnet_private[*].id }
+output "vpc_id"              { value = aws_vpc_this.id }
+output "public_subnet_ids"   { value = aws_subnet_public[*].id }
+output "private_subnet_ids"  { value = aws_subnet_private[*].id }
