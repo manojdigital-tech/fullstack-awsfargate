@@ -1,0 +1,49 @@
+
+name: Terraform CI
+
+on:
+  pull_request:
+    paths: [ "infra/**" ]
+  push:
+    branches: [ "main" ]
+    paths: [ "infra/**" ]
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: Configure AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::<ACCOUNT_ID>:role/github-actions-terraform
+          aws-region: ap-southeast-2
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive
+      - name: Terraform init/validate/plan (dev)
+        working-directory: infra/envs/dev
+        run: |
+          terraform init -input=false
+          terraform workspace select dev || terraform workspace new dev
+          terraform validate
+          terraform plan -input=false -no-color
+
+  apply:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: Configure AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::<ACCOUNT_ID>:role/github-actions-terraform
+          aws-region: ap-southeast-2
+      - name: Terraform apply (dev)
+        working-directory: infra/envs/dev
+        run: |
+          terraform init -input=false
+          terraform workspace select dev || terraform workspace new dev
+          terraform apply -input=false -auto-approve
