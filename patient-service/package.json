@@ -1,0 +1,13 @@
+
+{
+  "name": "patient-service",
+  "version": "1.0.0",
+  "main": "patient-service.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node patient-service.js",
+    "health": "curl -f http://localhost:3000/health || exit 1"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
