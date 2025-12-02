@@ -1,0 +1,50 @@
+
+name: App CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "patient-service/**"
+      - "appointment-service/**"
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [ "patient-service", "appointment-service" ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::<ACCOUNT_ID>:role/github-actions-app
+          aws-region: ap-southeast-2
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & Push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_REPO: ${{ matrix.service }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$IMAGE_REPO:$IMAGE_TAG ${{ matrix.service }}
+          docker tag $ECR_REGISTRY/$IMAGE_REPO:$IMAGE_TAG $ECR_REGISTRY/$IMAGE_REPO:latest
+          docker push $ECR_REGISTRY/$IMAGE_REPO:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$IMAGE_REPO:latest
+
+      - name: Force ECS deployment
+        env:
+          CLUSTER: "fargate-microservices-cluster"
+        run: |
+          if [ "${{ matrix.service }}" = "patient-service" ]; then
+            SVC_NAME="fargate-microservices-patient-svc"
+          else
+            SVC_NAME="fargate-microservices-appointment-svc"
+          fi
+          aws ecs update-service --cluster "$CLUSTER" --service "$SVC_NAME" --force-new-deployment
